@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "benchdas"
+version = "0.1.0"
+description = "Quick benchmarking and data analysis tools for Python"
+authors = ["SamKG <samyak.k.gupta@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pandas = "^2.1.4"
+seaborn = "^0.13.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
