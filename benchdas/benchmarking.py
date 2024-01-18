@@ -96,7 +96,7 @@ class Benchmarker:
         for profiler in self._profilers:
             profiler.run(func, fargs, fkwargs, cleanup, variables)
     
-    def get_results(self):
+    def get_results(self) -> pd.DataFrame:
         """Return the results as a multi-index DataFrame"""
         df = pd.concat([profiler.get_results() for profiler in self._profilers], axis=1)
         # remove duplicate columns (normally, variables are counted multiple times across profilers)
