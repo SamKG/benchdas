@@ -1,6 +1,6 @@
 from abc import abstractmethod
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Callable
 import numpy as np
 import pandas as pd
 
@@ -85,8 +85,19 @@ class RuntimeProfiler(Profiler):
                 raise
         return end - start
 
-        
-
+class CustomProfiler(Profiler):
+    def __init__(self, profile_fn: Callable, *args, results_key="Custom", **kwargs):        
+        super().__init__(*args, **kwargs, results_key=results_key)
+        self._profile_fn = profile_fn
+    
+    def _run(self, func, fargs=[], fkwargs={}, cleanup=NO_OP):
+        try:
+            return self._profile_fn(func, fargs, fkwargs, cleanup)
+        except:
+            if self._catch_exceptions:
+                return None
+            else:
+                raise
 
 class Benchmarker:
     def __init__(self, profilers: List[Profiler] = [RuntimeProfiler()]):
