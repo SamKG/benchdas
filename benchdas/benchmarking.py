@@ -38,16 +38,16 @@ class Profiler:
         self._results.append({self._results_key: result, **variables, RUN_ID_KEY: run_id})
 
     @abstractmethod
-    def _run(self, func, fargs=[], fkwargs={}, cleanup=NO_OP):
+    def _run(self, func, fargs=[], fkwargs={}, setup=NO_OP, cleanup=NO_OP):
         pass
 
-    def run(self, func, fargs=[], fkwargs={}, cleanup=NO_OP, variables: Dict[str, Any]={}):
+    def run(self, func, fargs=[], fkwargs={}, setup=NO_OP, cleanup=NO_OP, variables: Dict[str, Any]={}):
         """Run the function and log the metric"""
         for _ in range(self._warmup):
-            self._run(func, fargs, fkwargs, cleanup)
+            self._run(func, fargs, fkwargs, setup, cleanup)
 
         for _ in range(self._repeat):
-            value = self._run(func, fargs, fkwargs, cleanup)
+            value = self._run(func, fargs, fkwargs, setup, cleanup)
             self._log(value, variables, self._run_id)
 
         self._run_id += 1
@@ -69,11 +69,12 @@ class Profiler:
 class RuntimeProfiler(Profiler):
     """Log the runtime of a function call"""
 
-    def __init__(self, *args, results_key="Runtime", **kwargs):
-        super().__init__(*args, **kwargs, results_key=results_key)
+    def __init__(self, warmup=3, repeat=5, catch_exceptions=True, reduction_func=np.mean, results_key="Runtime"):
+        super().__init__(warmup=warmup, repeat=repeat, catch_exceptions=catch_exceptions, reduction_func=reduction_func, results_key=results_key)
     
-    def _run(self, func, fargs=[], fkwargs={}, cleanup=NO_OP):
+    def _run(self, func, fargs=[], fkwargs={}, setup=NO_OP, cleanup=NO_OP):
         try:
+            setup()
             start = time.perf_counter()
             func(*fargs, **fkwargs)
             end = time.perf_counter()
@@ -86,13 +87,13 @@ class RuntimeProfiler(Profiler):
         return end - start
 
 class CustomProfiler(Profiler):
-    def __init__(self, profile_fn: Callable, *args, results_key="Custom", **kwargs):        
-        super().__init__(*args, **kwargs, results_key=results_key)
+    def __init__(self, profile_fn: Callable, warmup=3, repeat=5, catch_exceptions=True, reduction_func=np.mean, results_key="Runtime"):
+        super().__init__(warmup=warmup, repeat=repeat, catch_exceptions=catch_exceptions, reduction_func=reduction_func, results_key=results_key)
         self._profile_fn = profile_fn
     
-    def _run(self, func, fargs=[], fkwargs={}, cleanup=NO_OP):
+    def _run(self, func, fargs=[], fkwargs={}, setup=NO_OP, cleanup=NO_OP):
         try:
-            return self._profile_fn(func, fargs, fkwargs, cleanup)
+            return self._profile_fn(func, fargs, fkwargs, setup, cleanup)
         except:
             if self._catch_exceptions:
                 return None
@@ -103,9 +104,9 @@ class Benchmarker:
     def __init__(self, profilers: List[Profiler] = [RuntimeProfiler()]):
         self._profilers = profilers
 
-    def run(self, func, fargs=[], fkwargs={}, cleanup=NO_OP, variables: Dict[str, Any]={}):
+    def run(self, func, fargs=[], fkwargs={}, setup=NO_OP, cleanup=NO_OP, variables: Dict[str, Any]={}):
         for profiler in self._profilers:
-            profiler.run(func, fargs, fkwargs, cleanup, variables)
+            profiler.run(func, fargs, fkwargs, setup, cleanup, variables)
     
     def get_results(self) -> pd.DataFrame:
         """Return the results as a multi-index DataFrame"""
