@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "benchdas"
-version = "0.2.0"
+version = "0.3.0"
 description = "Quick benchmarking and data analysis tools for Python"
 authors = ["SamKG <samyak.k.gupta@gmail.com>"]
 readme = "README.md"
