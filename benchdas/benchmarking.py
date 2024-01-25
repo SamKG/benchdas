@@ -1,6 +1,7 @@
 from abc import abstractmethod
+import functools
 import time
-from typing import Any, Dict, List, Callable
+from typing import Any, Dict, List, Callable, NewType
 import numpy as np
 import pandas as pd
 
@@ -24,7 +25,7 @@ RUN_ID_KEY = "PROFILER_RUN_ID"
 class Profiler:
     """Base class for all profilers"""
 
-    def __init__(self, warmup=3, repeat=5, catch_exceptions=True, reduction_func=np.mean, results_key="Result"):
+    def __init__(self, warmup=3, repeat=5, catch_exceptions=False, reduction_func=np.mean, results_key="Result"):
         self._results: Dict[str, Any] = []
         self._run_id: int = 0
         self._warmup: int = warmup
@@ -69,36 +70,33 @@ class Profiler:
 class RuntimeProfiler(Profiler):
     """Log the runtime of a function call"""
 
-    def __init__(self, warmup=3, repeat=5, catch_exceptions=True, reduction_func=np.mean, results_key="Runtime"):
+    def __init__(self, warmup=3, repeat=5, catch_exceptions=False, reduction_func=np.mean, results_key="Runtime"):
         super().__init__(warmup=warmup, repeat=repeat, catch_exceptions=catch_exceptions, reduction_func=reduction_func, results_key=results_key)
     
     def _run(self, func, fargs=[], fkwargs={}, setup=NO_OP, cleanup=NO_OP):
-        try:
+        def _loop():
             setup()
             start = time.perf_counter()
             func(*fargs, **fkwargs)
             end = time.perf_counter()
             cleanup()
-        except:
-            if self._catch_exceptions:
-                return None
-            else:
-                raise
-        return end - start
+            return end - start
+        _runner = functools.partial(pcall_or_value, fallback=float("nan")) if self._catch_exceptions else call_func 
+        return _runner(_loop)
+
+ProfileFn = Callable[[Callable, List[Any], Dict[str, Any], Callable, Callable], Any]
 
 class CustomProfiler(Profiler):
-    def __init__(self, profile_fn: Callable, warmup=3, repeat=5, catch_exceptions=True, reduction_func=np.mean, results_key="Runtime"):
+    def __init__(self, profile_fn: ProfileFn, warmup=3, repeat=5, catch_exceptions=False, reduction_func=np.mean, results_key="Custom"):
         super().__init__(warmup=warmup, repeat=repeat, catch_exceptions=catch_exceptions, reduction_func=reduction_func, results_key=results_key)
         self._profile_fn = profile_fn
     
     def _run(self, func, fargs=[], fkwargs={}, setup=NO_OP, cleanup=NO_OP):
-        try:
-            return self._profile_fn(func, fargs, fkwargs, setup, cleanup)
-        except:
-            if self._catch_exceptions:
-                return None
-            else:
-                raise
+        def _loop():
+            val = self._profile_fn(func, fargs, fkwargs, setup=setup, cleanup=cleanup)
+            return val
+        _runner = functools.partial(pcall_or_value, fallback=float("nan")) if self._catch_exceptions else call_func 
+        return _runner(_loop)
 
 class Benchmarker:
     def __init__(self, profilers: List[Profiler] = [RuntimeProfiler()]):
